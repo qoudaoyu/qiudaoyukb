@@ -1,0 +1,14 @@
+fastapi==0.115.6
+uvicorn==0.32.1
+python-multipart==0.0.20
+httpx==0.28.1
+lxml==5.3.0
+lxml_html_clean==0.4.1
+readability-lxml==0.8.1
+markdownify==0.14.1
+Markdown==3.7
+nh3==0.2.20
+itsdangerous==2.2.0
+pytesseract==0.3.13
+Pillow==11.0.0
+oss2==2.19.1

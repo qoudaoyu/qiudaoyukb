@@ -1,0 +1,14 @@
+# Caddy 会自动向 Let's Encrypt 申请并续期免费 HTTPS 证书
+{$DOMAIN} {
+	encode gzip
+	request_body {
+		max_size 100MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+	reverse_proxy app:8000
+}
