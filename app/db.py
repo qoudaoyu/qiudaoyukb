@@ -134,7 +134,10 @@ def delete(nid: int):
 
 def search(q: str = "", tag: str = "", limit: int = 30, offset: int = 0):
     sql = ["SELECT id,title,summary,tags,source_url,author,status,created_at,updated_at,"
-           "substr(content,1,160) AS excerpt FROM notes WHERE 1=1"]
+           "substr(content,1,160) AS excerpt,"
+           "CASE WHEN instr(content,'](/media/')>0 "
+           "THEN substr(content,instr(content,'](/media/')+2,80) ELSE '' END AS thumb "
+           "FROM notes WHERE 1=1"]
     args = []
     for term in (q or "").split():
         if term.startswith("#") and len(term) > 1:
