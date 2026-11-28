@@ -129,6 +129,35 @@ def _extract_xhs(html: str):
     }
 
 
+def _extract_wechat(html: str, url: str):
+    """公众号文章：正文固定在 #js_content 里。页面很大时 readability 会挑错块（只剩点赞、分享等按钮文字），
+    所以直接取这个节点。拿不到或几乎没字时返回 None，交给通用流程。"""
+    from markdownify import markdownify
+    try:
+        el = lxml_html.fromstring(html).get_element_by_id("js_content")
+    except (KeyError, Exception):
+        return None
+    for bad in el.xpath(".//script|.//style"):
+        bad.getparent().remove(bad)
+    for img in el.iter("img"):  # 懒加载图片：data-src -> src
+        if img.get("data-src"):
+            img.set("src", img.get("data-src"))
+    md = markdownify(lxml_html.tostring(el, encoding="unicode"), heading_style="ATX", strip=["script", "style"])
+    md = re.sub(r"\n{3,}", "\n\n", md).strip()
+    imgs = []
+
+    def fix(m):
+        src = urljoin(url, m.group(2))
+        if src.startswith("http") and src not in imgs:
+            imgs.append(src)
+        return f"![{m.group(1)}]({src})"
+
+    md = re.sub(r"!\[([^\]]*)\]\(([^)\s]+)[^)]*\)", fix, md)
+    if len(re.sub(r"!\[[^\]]*\]\([^)]*\)|\s", "", md)) < 40 and not imgs:
+        return None
+    return md, imgs
+
+
 def _readability(html: str, url: str):
     from markdownify import markdownify
     from readability import Document
@@ -170,9 +199,12 @@ def fetch_article(url: str) -> dict:
     host = urlparse(final).hostname or ""
     is_xhs = any(h in host for h in ("xiaohongshu", "rednote", "xhslink"))
     xhs = _extract_xhs(html) if is_xhs or "__INITIAL_STATE__" in html else None
+    wx = _extract_wechat(html, final) if "mp.weixin.qq.com" in host else None
     if xhs and (xhs["markdown"] or xhs["images"]):
         res.update({k: v for k, v in xhs.items() if v})
         res["image_post"] = True  # 小红书图文：文字多在图片里
+    elif wx:
+        res["markdown"], res["images"] = wx
     else:
         try:
             t, md, imgs = _readability(html, final)
