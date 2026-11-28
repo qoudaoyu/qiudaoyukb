@@ -142,6 +142,19 @@ def _extract_wechat(html: str, url: str):
     for img in el.iter("img"):  # 懒加载图片：data-src -> src
         if img.get("data-src"):
             img.set("src", img.get("data-src"))
+    # 公众号编辑器常用 <section> 当段落，markdownify 不把它当块级元素，整段会粘成一行。
+    # 把「里面不再套块级元素」的 section/div 当成段落 <p>。
+    block = {"section", "div", "p", "ul", "ol", "table", "blockquote", "pre", "h1", "h2", "h3", "h4", "h5", "h6"}
+    for e in list(el.iter("section", "div")):
+        if e is not el and not any(d.tag in block for d in e.iterdescendants()):
+            e.tag = "p"
+    # 只有一个序号（如 1、2、3 / 01 / 一）的段落是章节标题
+    for p in el.iter("p"):
+        t = p.text_content().strip()
+        if re.fullmatch(r"(?:0?\d{1,2}|[一二三四五六七八九十]{1,3})", t) and not p.xpath(".//img"):
+            p.tag = "h2"
+            p.clear()
+            p.text = t
     md = markdownify(lxml_html.tostring(el, encoding="unicode"), heading_style="ATX", strip=["script", "style"])
     md = re.sub(r"\n{3,}", "\n\n", md).strip()
     imgs = []
