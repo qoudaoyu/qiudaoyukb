@@ -32,6 +32,16 @@ app.add_middleware(SessionMiddleware, secret_key=SECRET, session_cookie="kb_sess
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
+@app.middleware("http")
+async def static_no_cache(request: Request, call_next):
+    # 前端文件每次都向服务器确认是否有新版（没变化时只回 304，很省流量）。
+    # 不加这个头时，手机浏览器会自己估一个缓存时间，更新后可能好几个小时还在用旧的 app.js。
+    resp = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
 @app.on_event("startup")
 def startup():
     db.init()

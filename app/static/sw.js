@@ -1,11 +1,14 @@
 // Service Worker：缓存外壳、接管安卓「分享到」、离线/未登录时把分享暂存起来
-const SHELL_CACHE = 'kb-shell-v7';
+const SHELL_CACHE = 'kb-shell-v8';
 const MEDIA_CACHE = 'kb-media-v1';
 const PENDING_CACHE = 'kb-pending';
 const SHELL = ['/', '/static/app.js', '/static/style.css', '/static/manifest.webmanifest', '/static/icon-192.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(SHELL_CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload'：安装时绕过浏览器的 HTTP 缓存，确保存进来的是服务器上的最新文件
+  e.waitUntil(caches.open(SHELL_CACHE)
+    .then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -57,8 +60,10 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (url.pathname === '/' || url.pathname.startsWith('/static/')) {
-    // 网络优先，离线时用缓存
-    e.respondWith(fetch(e.request).then(r => {
+    // 网络优先，离线时用缓存。静态文件用 no-cache：每次向服务器确认，不吃浏览器里过期的旧副本
+    // （页面导航请求不能改 cache 选项，'/' 本身已由服务器返回 no-cache）
+    const req = url.pathname === '/' ? e.request : new Request(e.request, { cache: 'no-cache' });
+    e.respondWith(fetch(req).then(r => {
       if (r.ok) { const copy = r.clone(); caches.open(SHELL_CACHE).then(c => c.put(e.request, copy)); }
       return r;
     }).catch(() => caches.match(e.request, { ignoreSearch: true })));
