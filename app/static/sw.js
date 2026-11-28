@@ -1,5 +1,5 @@
 // Service Worker：缓存外壳、接管安卓「分享到」、离线/未登录时把分享暂存起来
-const SHELL_CACHE = 'kb-shell-v6';
+const SHELL_CACHE = 'kb-shell-v7';
 const MEDIA_CACHE = 'kb-media-v1';
 const PENDING_CACHE = 'kb-pending';
 const SHELL = ['/', '/static/app.js', '/static/style.css', '/static/manifest.webmanifest', '/static/icon-192.png'];

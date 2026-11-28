@@ -284,6 +284,7 @@ async function viewList(params) {
   const io = new IntersectionObserver(es => { if (es[0].isIntersecting && listState.more) loadList(false); }, { rootMargin: '300px' });
   io.observe(document.getElementById('more'));
   setupPullToRefresh();
+  setupLongPress(document.getElementById('list'));
   checkClipboard();
   const restore = listScroll; listScroll = 0;
   if (restore) scrollTo(0, restore);
@@ -348,6 +349,61 @@ function setupPullToRefresh() {
     addEventListener('touchend', () => setupPullToRefresh.h?.end());
   }
   setupPullToRefresh.h = { start, move, end };
+}
+
+// 长按笔记（电脑上右键）弹出菜单：删除
+function setupLongPress(list) {
+  let timer = null, startXY = null, fired = false, pressed = null;
+  const cancel = () => { clearTimeout(timer); timer = null; pressed?.classList.remove('pressing'); pressed = null; };
+  const open = item => {
+    cancel();
+    const id = +item.getAttribute('href').split('/').pop();
+    const n = listState.items.find(x => x.id === id);
+    if (!n) return;
+    fired = true;
+    if (navigator.vibrate) try { navigator.vibrate(15); } catch { }
+    openSheet(n.title || '未命名', [
+      { icon: 'trash', label: '删除', desc: '删除后无法恢复', danger: true, onClick: () => deleteFromList(n) },
+    ]);
+  };
+  list.addEventListener('touchstart', e => {
+    const item = e.target.closest('.item'); if (!item) return;
+    fired = false; startXY = [e.touches[0].clientX, e.touches[0].clientY];
+    pressed = item; item.classList.add('pressing');
+    timer = setTimeout(() => open(item), 500);
+  }, { passive: true });
+  list.addEventListener('touchmove', e => {
+    if (!timer) return;
+    const t = e.touches[0];
+    if (Math.abs(t.clientX - startXY[0]) > 10 || Math.abs(t.clientY - startXY[1]) > 10) cancel();
+  }, { passive: true });
+  list.addEventListener('touchend', cancel);
+  list.addEventListener('touchcancel', cancel);
+  // 安卓长按链接、电脑右键都会触发 contextmenu：拦下系统菜单，改用自己的
+  list.addEventListener('contextmenu', e => {
+    const item = e.target.closest('.item'); if (!item) return;
+    e.preventDefault();
+    if (!fired) open(item);
+  });
+  // 长按后松手不要再打开笔记
+  list.addEventListener('click', e => {
+    if (fired && e.target.closest('.item')) { e.preventDefault(); e.stopPropagation(); fired = false; }
+  }, true);
+}
+
+async function deleteFromList(n) {
+  if (!await confirmDialog({ title: '删除这条笔记？', text: `「${n.title || '未命名'}」删除后无法恢复。`, ok: '删除', danger: true })) return;
+  try {
+    await api('/api/notes/' + n.id, { method: 'DELETE' });
+    listState.items = listState.items.filter(x => x.id !== n.id);
+    listState.offset = Math.max(0, listState.offset - 1);
+    const el = document.querySelector(`.item[href="#/note/${n.id}"]`);
+    if (el) {
+      el.style.transition = 'opacity .18s, transform .18s'; el.style.opacity = '0'; el.style.transform = 'scale(.96)';
+      setTimeout(() => loadList(true), 180);
+    } else loadList(true);
+    toast('已删除');
+  } catch (e) { toast(e.message); }
 }
 
 async function logout() {
